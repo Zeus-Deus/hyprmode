@@ -260,7 +260,3 @@ MIT License - see LICENSE file for details
 - **Issues**: https://github.com/yourusername/hyprmode/issues
 - **Hyprland**: https://hyprland.org/
 - **Textual**: https://textual.textualize.io/
-
----
-
-**Made with ❤️ for the Hyprland community**
