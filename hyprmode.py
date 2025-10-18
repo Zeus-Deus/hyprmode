@@ -125,13 +125,61 @@ def send_notification(message: str, urgent: bool = False) -> None:
         pass
 
 
+def clear_mirror_state(laptop: Optional[dict], external: Optional[dict]) -> dict:
+    """
+    Clear any existing mirror relationship and restore native monitor specs.
+    Returns refreshed monitor data after reload.
+    """
+    try:
+        # Disable both monitors to clear mirror state
+        if external:
+            subprocess.run(
+                ["hyprctl", "keyword", "monitor", f"{external['name']},disable"],
+                timeout=5,
+                stderr=subprocess.DEVNULL
+            )
+        
+        if laptop:
+            subprocess.run(
+                ["hyprctl", "keyword", "monitor", f"{laptop['name']},disable"],
+                timeout=5,
+                stderr=subprocess.DEVNULL
+            )
+        
+        # Small delay for state to settle
+        import time
+        time.sleep(0.3)
+        
+        # CRITICAL: Reload Hyprland config to restore native monitor settings
+        subprocess.run(
+            ["hyprctl", "reload"],
+            timeout=5,
+            stderr=subprocess.DEVNULL
+        )
+        
+        # Small delay for reload to complete
+        time.sleep(0.3)
+        
+        # RE-DETECT monitors to get the restored native specs
+        return get_monitors()
+    
+    except Exception:
+        # If error, return original values
+        return {'laptop': laptop, 'external': external}
+
+
 def apply_laptop_only(laptop: Optional[dict], external: Optional[dict]) -> None:
     """Disable external, enable laptop"""
     if not laptop:
         raise RuntimeError("Laptop monitor not detected - cannot enable")
     
+    # Clear mirror state and get refreshed monitor specs
+    monitors = clear_mirror_state(laptop, external)
+    laptop = monitors['laptop']
+    external = monitors['external']
+    
     try:
-        # Enable laptop with actual settings
+        # Enable laptop with REFRESHED settings (native resolution restored!)
         laptop_config = f"{laptop['name']},{laptop['width']}x{laptop['height']}@{laptop['refreshRate']:.0f},auto,{laptop['scale']}"
         subprocess.run(
             ["hyprctl", "keyword", "monitor", laptop_config],
@@ -154,6 +202,14 @@ def apply_laptop_only(laptop: Optional[dict], external: Optional[dict]) -> None:
 
 def apply_external_only(laptop: Optional[dict], external: dict) -> None:
     """Disable laptop, enable external"""
+    if not external:
+        raise RuntimeError("External monitor not detected - cannot enable")
+    
+    # Clear mirror state and get refreshed monitor specs
+    monitors = clear_mirror_state(laptop, external)
+    laptop = monitors['laptop']
+    external = monitors['external']
+    
     try:
         # Enable external with actual settings
         external_config = f"{external['name']},{external['width']}x{external['height']}@{external['refreshRate']:.0f},auto,{external['scale']}"
@@ -180,6 +236,13 @@ def apply_extend(laptop: Optional[dict], external: dict) -> None:
     """Enable both, position external to the right"""
     if not laptop:
         raise RuntimeError("Laptop monitor not detected - cannot enable")
+    if not external:
+        raise RuntimeError("External monitor not detected - cannot extend")
+    
+    # Clear mirror state and get refreshed monitor specs
+    monitors = clear_mirror_state(laptop, external)
+    laptop = monitors['laptop']
+    external = monitors['external']
     
     try:
         # Enable laptop at 0x0 with actual settings
@@ -204,26 +267,48 @@ def apply_extend(laptop: Optional[dict], external: dict) -> None:
 
 
 def apply_mirror(laptop: Optional[dict], external: dict) -> None:
-    """Enable both with same content (mirror mode)"""
+    """Enable both displays with same content (mirror mode)"""
     if not laptop:
         raise RuntimeError("Laptop monitor not detected - cannot enable")
+    if not external:
+        raise RuntimeError("External monitor not detected - cannot mirror")
+    
+    # Clear any existing mirror state and get refreshed monitor specs
+    monitors = clear_mirror_state(laptop, external)
+    laptop = monitors['laptop']
+    external = monitors['external']
     
     try:
-        # Enable laptop at 0x0 with actual settings
-        laptop_config = f"{laptop['name']},{laptop['width']}x{laptop['height']}@{laptop['refreshRate']:.0f},0x0,{laptop['scale']}"
+        import time
+        
+        # Use EXTERNAL's native resolution/refresh rate (what it can actually support)
+        # This prevents forcing incompatible specs on the external monitor
+        mirror_width = external['width']
+        mirror_height = external['height']
+        mirror_refresh = external['refreshRate']
+        
+        # Step 1: Configure laptop to output at external's resolution
+        # Laptop will downscale its content to match external
+        laptop_config = f"{laptop['name']},{mirror_width}x{mirror_height}@{mirror_refresh:.0f},0x0,{laptop['scale']}"
         subprocess.run(
             ["hyprctl", "keyword", "monitor", laptop_config],
             check=True,
             timeout=5
         )
-        # Mirror external using laptop's resolution and scale
-        mirror_config = f"{external['name']},{laptop['width']}x{laptop['height']}@{laptop['refreshRate']:.0f},0x0,{laptop['scale']},mirror,{laptop['name']}"
+        
+        # Step 2: Wait for laptop to stabilize
+        time.sleep(0.3)
+        
+        # Step 3: Configure external to mirror laptop at its native resolution
+        external_config = f"{external['name']},{mirror_width}x{mirror_height}@{mirror_refresh:.0f},0x0,{external['scale']},mirror,{laptop['name']}"
         subprocess.run(
-            ["hyprctl", "keyword", "monitor", mirror_config],
+            ["hyprctl", "keyword", "monitor", external_config],
             check=True,
             timeout=5
         )
-        send_notification("Switched to Mirror mode")
+        
+        send_notification(f"Mirror mode applied - using {mirror_width}x{mirror_height}@{mirror_refresh:.0f}Hz")
+    
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Failed to apply mirror mode: {e}")
     except subprocess.TimeoutExpired:
