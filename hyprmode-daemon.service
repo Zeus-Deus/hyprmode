@@ -1,10 +1,10 @@
 [Unit]
-Description=HyprMode Automatic Display Switcher
+Description=HyprMode Emergency Recovery Daemon
 After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /usr/local/bin/hyprmode-daemon.py
+ExecStart=/usr/local/bin/hyprmode-daemon
 Restart=on-failure
 RestartSec=5
 

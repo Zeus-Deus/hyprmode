@@ -32,14 +32,29 @@ cd hyprmode
 
 The installer will:
 1. Install `hyprmode` to `/usr/local/bin/`
-2. Optionally install automatic lid-handling daemon
-3. Optionally set up systemd service for auto-start
+2. **Auto-detect your laptop monitor** (works with any eDP/LVDS/DSI display)
+3. Set up automatic lid detection with Hyprland `bindl`
+4. Install emergency recovery daemon (recommended for safety)
+5. Optionally enable systemd service for auto-start
+6. Show clear summary of what was installed
+
+**To uninstall:**
+```bash
+./uninstall.sh
+```
 
 ### Manual Installation
 
+If you prefer manual installation:
+
 ```bash
+# Install main script
 sudo cp hyprmode.py /usr/local/bin/hyprmode
 sudo chmod +x /usr/local/bin/hyprmode
+
+# Install daemon (recommended)
+sudo cp hyprmode-daemon.py /usr/local/bin/hyprmode-daemon
+sudo chmod +x /usr/local/bin/hyprmode-daemon
 ```
 
 ### Dependencies
@@ -75,29 +90,57 @@ hyprmode
 3. **↔️ Extend** - Both displays active, external positioned to the right
 4. **🔄 Mirror** - Both displays show identical content
 
-### Automatic Mode (Daemon)
+### Automatic Lid Handling
 
-The daemon monitors laptop lid state and automatically switches display modes:
+Lid detection is handled by Hyprland's native `bindl` (bind lid switch) feature for instant, event-driven detection with zero CPU overhead.
 
-**Start daemon manually:**
-```bash
-hyprmode-daemon &
+**How it works:**
+1. Kernel detects lid close → Hyprland receives event instantly
+2. Hyprland triggers display mode switch via `bindl` binding
+3. No polling, no delay, zero CPU usage
+
+**Configuration:**
+
+The installer **auto-detects your laptop monitor** and creates `~/.config/hypr/lid-switch.conf`:
+```conf
+# hyprmode - Automatic lid switch detection
+# Generated for laptop monitor: eDP-2  (auto-detected!)
+
+# When lid closes - disable laptop display
+bindl = , switch:on:Lid Switch, exec, hyprctl keyword monitor "eDP-2,disable"
+
+# When lid opens - restore laptop display with your current settings
+bindl = , switch:off:Lid Switch, exec, hyprctl keyword monitor "eDP-2,1920x1200@165,auto,1.25"
 ```
 
-**Start daemon with systemd:**
+**Features:**
+- ✅ Works with any laptop (eDP-1, eDP-2, LVDS-1, DSI-1, etc.)
+- ✅ Preserves your exact current monitor settings
+- ✅ Graceful fallback if detection fails
+
+After installation, reload Hyprland: `hyprctl reload`
+
+### Emergency Recovery Daemon
+
+A lightweight background daemon monitors for external display disconnect to prevent black screens. If you unplug your external monitor while in "External Only" mode, the daemon instantly re-enables your laptop screen.
+
+**Why it's needed:**
+
+Without this safety net, unplugging an external monitor in "External Only" mode would leave you with a completely black screen.
+
+**Installation:**
+
 ```bash
+systemctl --user enable hyprmode-daemon
 systemctl --user start hyprmode-daemon
-systemctl --user enable hyprmode-daemon  # Auto-start on login
 ```
 
-**Daemon behavior:**
+**What it does:**
 
-| Lid State | External Monitor | Action |
-|-----------|------------------|--------|
-| Closed | Connected | Switch to External Only |
-| Closed | Not connected | No action (system sleep) |
-| Opened | Connected | Switch to Extend mode |
-| Opened | Not connected | Switch to Laptop Only |
+- Runs silently in background (minimal CPU usage)
+- Monitors for external display disconnect
+- Automatically enables laptop screen if all displays go black
+- Provides safety without manual intervention
 
 **Daemon commands:**
 ```bash
@@ -202,9 +245,11 @@ Currently, hyprmode uses the first detected external monitor. Multi-monitor supp
 ```
 hyprmode/
 ├── hyprmode.py              # Main TUI application
-├── hyprmode-daemon.py       # Background daemon
+├── hyprmode-daemon.py       # Emergency recovery daemon
 ├── hyprmode-daemon.service  # Systemd service unit
-├── install.sh               # Installation script
+├── install.sh               # Installation script (auto-detects monitors)
+├── uninstall.sh             # Uninstallation script
+├── lid-switch.conf.template # Template for Hyprland lid bindings
 ├── README.md                # This file
 └── LICENSE                  # MIT License
 ```
