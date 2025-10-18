@@ -10,16 +10,76 @@ import subprocess
 import time
 import sys
 import json
-from pathlib import Path
 
-# Add current directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
 
-from hyprmode import (
-    get_monitors,
-    apply_laptop_only,
-    send_notification
-)
+def send_notification(message: str, urgent: bool = False) -> None:
+    """Send desktop notification"""
+    try:
+        urgency = "critical" if urgent else "normal"
+        subprocess.run(
+            ["notify-send", "-u", urgency, "HyprMode", message],
+            timeout=2
+        )
+    except Exception:
+        pass  # Notifications are optional
+
+
+def get_monitors() -> dict:
+    """Get connected monitors from hyprctl"""
+    try:
+        result = subprocess.run(
+            ["hyprctl", "monitors", "-j"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5
+        )
+        
+        monitors_data = json.loads(result.stdout)
+        
+        laptop = None
+        external = None
+        
+        for monitor in monitors_data:
+            name = monitor['name']
+            if 'eDP' in name or 'LVDS' in name or 'DSI' in name:
+                laptop = monitor
+            else:
+                external = monitor
+        
+        return {'laptop': laptop, 'external': external}
+    except Exception:
+        return {'laptop': None, 'external': None}
+
+
+def apply_laptop_only(laptop: dict, external: dict) -> None:
+    """Enable laptop display only"""
+    if not laptop:
+        return
+    
+    try:
+        laptop_name = laptop['name']
+        width = laptop['width']
+        height = laptop['height']
+        refresh = laptop.get('refreshRate', 60)
+        scale = laptop.get('scale', 1.0)
+        
+        # Enable laptop with its settings
+        subprocess.run(
+            ["hyprctl", "keyword", "monitor", 
+             f"{laptop_name},{width}x{height}@{int(refresh)},auto,{scale}"],
+            timeout=5,
+            check=True
+        )
+        
+        # Disable external if present
+        if external:
+            subprocess.run(
+                ["hyprctl", "keyword", "monitor", f"{external['name']},disable"],
+                timeout=5
+            )
+    except Exception:
+        pass
 
 
 def get_monitor_count() -> tuple:
