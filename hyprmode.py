@@ -67,6 +67,7 @@ def get_monitors() -> dict:
             'width': monitor.get('width', 0),
             'height': monitor.get('height', 0),
             'refreshRate': monitor.get('refreshRate', 0.0),
+            'scale': monitor.get('scale', 1.0),
             'disabled': monitor.get('disabled', False)
         }
         
@@ -130,9 +131,10 @@ def apply_laptop_only(laptop: Optional[dict], external: Optional[dict]) -> None:
         raise RuntimeError("Laptop monitor not detected - cannot enable")
     
     try:
-        # Enable laptop
+        # Enable laptop with actual settings
+        laptop_config = f"{laptop['name']},{laptop['width']}x{laptop['height']}@{laptop['refreshRate']:.0f},auto,{laptop['scale']}"
         subprocess.run(
-            ["hyprctl", "keyword", "monitor", f"{laptop['name']},preferred,auto,1"],
+            ["hyprctl", "keyword", "monitor", laptop_config],
             check=True,
             timeout=5
         )
@@ -153,9 +155,10 @@ def apply_laptop_only(laptop: Optional[dict], external: Optional[dict]) -> None:
 def apply_external_only(laptop: Optional[dict], external: dict) -> None:
     """Disable laptop, enable external"""
     try:
-        # Enable external
+        # Enable external with actual settings
+        external_config = f"{external['name']},{external['width']}x{external['height']}@{external['refreshRate']:.0f},auto,{external['scale']}"
         subprocess.run(
-            ["hyprctl", "keyword", "monitor", f"{external['name']},preferred,auto,1"],
+            ["hyprctl", "keyword", "monitor", external_config],
             check=True,
             timeout=5
         )
@@ -179,15 +182,17 @@ def apply_extend(laptop: Optional[dict], external: dict) -> None:
         raise RuntimeError("Laptop monitor not detected - cannot enable")
     
     try:
-        # Enable laptop at 0x0
+        # Enable laptop at 0x0 with actual settings
+        laptop_config = f"{laptop['name']},{laptop['width']}x{laptop['height']}@{laptop['refreshRate']:.0f},0x0,{laptop['scale']}"
         subprocess.run(
-            ["hyprctl", "keyword", "monitor", f"{laptop['name']},preferred,0x0,1"],
+            ["hyprctl", "keyword", "monitor", laptop_config],
             check=True,
             timeout=5
         )
-        # Enable external to the right
+        # Enable external to the right with actual settings
+        external_config = f"{external['name']},{external['width']}x{external['height']}@{external['refreshRate']:.0f},auto-right,{external['scale']}"
         subprocess.run(
-            ["hyprctl", "keyword", "monitor", f"{external['name']},preferred,auto-right,1"],
+            ["hyprctl", "keyword", "monitor", external_config],
             check=True,
             timeout=5
         )
@@ -204,19 +209,17 @@ def apply_mirror(laptop: Optional[dict], external: dict) -> None:
         raise RuntimeError("Laptop monitor not detected - cannot enable")
     
     try:
-        # Enable laptop at 0x0
+        # Enable laptop at 0x0 with actual settings
+        laptop_config = f"{laptop['name']},{laptop['width']}x{laptop['height']}@{laptop['refreshRate']:.0f},0x0,{laptop['scale']}"
         subprocess.run(
-            ["hyprctl", "keyword", "monitor", f"{laptop['name']},preferred,0x0,1"],
+            ["hyprctl", "keyword", "monitor", laptop_config],
             check=True,
             timeout=5
         )
-        # Mirror external to laptop
-        width = int(external['width'])
-        height = int(external['height'])
-        refresh = int(external['refreshRate'])
+        # Mirror external using laptop's resolution and scale
+        mirror_config = f"{external['name']},{laptop['width']}x{laptop['height']}@{laptop['refreshRate']:.0f},0x0,{laptop['scale']},mirror,{laptop['name']}"
         subprocess.run(
-            ["hyprctl", "keyword", "monitor", 
-             f"{external['name']},{width}x{height}@{refresh},0x0,1,mirror,{laptop['name']}"],
+            ["hyprctl", "keyword", "monitor", mirror_config],
             check=True,
             timeout=5
         )
