@@ -4,10 +4,10 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/hyprmode-daemon
+ExecStartPre=/bin/bash -c 'find /usr/local/bin -name "*.pyc" -delete 2>/dev/null; find ${HOME}/.cache -name "*.pyc" -delete 2>/dev/null || true'
+ExecStart=/usr/local/bin/hyprmode-daemon-wrapper
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=default.target
-

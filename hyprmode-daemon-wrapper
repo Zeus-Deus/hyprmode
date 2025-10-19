@@ -1,0 +1,15 @@
+#!/bin/bash
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUNBUFFERED=1
+
+# Delete any cached bytecode
+find /usr/local/bin -name "*.pyc" -delete 2>/dev/null
+find ~/.cache -name "*hyprmode*.pyc" -delete 2>/dev/null
+
+# Force Python to execute the file directly (not import it)
+exec /usr/bin/python3 -B -u -c "
+import sys
+sys.dont_write_bytecode = True
+with open('/usr/local/bin/hyprmode-daemon', 'r') as f:
+    exec(f.read())
+"

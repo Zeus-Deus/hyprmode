@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VERSION: 2025-10-19-PRODUCTION-v1
 """
 hyprmode-daemon - Emergency laptop screen recovery
 
@@ -87,8 +88,6 @@ def apply_laptop_only(laptop: dict, external: dict) -> None:
 def get_monitor_count() -> tuple:
     """Get count of enabled monitors and check if laptop exists"""
     try:
-        print("DEBUG: get_monitor_count() called")
-        
         result = subprocess.run(
             ["hyprctl", "monitors", "-j"],
             capture_output=True,
@@ -98,14 +97,6 @@ def get_monitor_count() -> tuple:
         )
         
         monitors = json.loads(result.stdout)
-        print(f"DEBUG: Got {len(monitors)} monitors from hyprctl")
-        
-        # Debug: Print monitor details to verify dpmsStatus field works
-        print("DEBUG: All monitors from hyprctl:")
-        for m in monitors:
-            print(f"  - {m.get('name')}: disabled={m.get('disabled')}, dpmsStatus={m.get('dpmsStatus')}, "
-                  f"activeWorkspace={m.get('activeWorkspace', {}).get('id', 'N/A')}, "
-                  f"dims={m.get('width')}x{m.get('height')}")
         
         # Filter to only count ACTUALLY RENDERING monitors
         # The 'disabled' field is UNRELIABLE - use dpmsStatus instead
@@ -206,15 +197,19 @@ def monitor_hotplug() -> None:
     if not wait_for_hyprland():
         sys.exit(1)
     
+    print("HyprMode Daemon VERSION: 2025-10-19-PRODUCTION-v1")
+    
     previous_count, previous_has_laptop = get_monitor_count()
     
     print("hyprmode emergency recovery daemon started")
     print("Monitoring for external display disconnect...")
     
     while True:
+        print("HEARTBEAT")
         try:
             current_count, current_has_laptop = get_monitor_count()
-            print(f"DEBUG: Detected {current_count} enabled monitors, has_laptop={current_has_laptop}")
+            print(f"Detected: {current_count} monitors, has_laptop={current_has_laptop}")
+            print(f"Previous: {previous_count} monitors, previous_has_laptop={previous_has_laptop}")
             
             # CRITICAL: No monitors active = BLACK SCREEN!
             # This happens when:
