@@ -1,5 +1,13 @@
 #!/bin/bash
 
+echo "Clearing Python cache..."
+# Clear local project cache
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find . -type f -name "*.pyc" -delete 2>/dev/null || true
+
+# Clear user cache directories that might have stale bytecode
+rm -rf ~/.cache/textual/ 2>/dev/null || true
+
 echo "Installing HyprMode and Emergency Recovery Daemon..."
 
 # Check if running from correct directory
