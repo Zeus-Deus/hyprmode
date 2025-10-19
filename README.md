@@ -414,12 +414,94 @@ journalctl --user -u hyprmode-daemon | grep "VERSION"
 
 ### Hyprland Config
 
-Add keybind to your `~/.config/hypr/hyprland.conf`:
+#### For Omarchy Users (Recommended)
+
+Omarchy uses separate config files for better organization. Follow these steps:
+
+**Step 1: Add the keybind**
+
+Edit `~/.config/hypr/bindings.conf`:
+
+```bash
+nano ~/.config/hypr/bindings.conf
+```
+
+Add this line (Omarchy uses `bindd` with descriptions):
+
+```bash
+bindd = SUPER, P, Display switcher, exec, alacritty --class hyprmode -e hyprmode
+```
+
+**Step 2: Create window rules**
+
+Create `~/.config/hypr/windows.conf`:
+
+```bash
+cat > ~/.config/hypr/windows.conf << 'EOF'
+# HyprMode - Float and center
+windowrulev2 = float, class:(hyprmode)
+windowrulev2 = center, class:(hyprmode)
+windowrulev2 = size 600 530, class:(hyprmode)
+windowrulev2 = opacity 0.95, class:(hyprmode)
+EOF
+```
+
+**Step 3: Source the window rules**
+
+Add the source line to your `hyprland.conf` (only if not already present):
+
+```bash
+# Check if already added
+if ! grep -q "windows.conf" ~/.config/hypr/hyprland.conf; then
+    echo "source = ~/.config/hypr/windows.conf" >> ~/.config/hypr/hyprland.conf
+fi
+```
+
+**Step 4: Reload and test**
+
+```bash
+hyprctl reload
+```
+
+Now press **Super+P** - hyprmode should appear as a centered floating window!
+
+**Why the special launch command?**
+
+TUI apps run inside terminals, so Hyprland can't distinguish them from regular terminal windows. The `alacritty --class hyprmode` command creates a terminal with a unique class that window rules can target.
+
+#### For Standard Hyprland Users
+
+Add to your `~/.config/hypr/hyprland.conf`:
 
 ```conf
 # Display mode switcher (like Windows Super+P)
-bind = SUPER, P, exec, hyprmode
+bind = SUPER, P, exec, alacritty --class hyprmode -e hyprmode
+
+# Window rules for floating mode
+windowrulev2 = float, class:(hyprmode)
+windowrulev2 = center, class:(hyprmode)
+windowrulev2 = size 600 530, class:(hyprmode)
+windowrulev2 = opacity 0.95, class:(hyprmode)
 ```
+
+Then reload: `hyprctl reload`
+
+#### Customizing Window Size
+
+The default size is 600x530 pixels. To adjust:
+
+```bash
+nano ~/.config/hypr/windows.conf
+```
+
+Change the size line:
+```bash
+windowrulev2 = size 600 530, class:(hyprmode)  # Default
+windowrulev2 = size 550 400, class:(hyprmode)  # Smaller
+windowrulev2 = size 700 600, class:(hyprmode)  # Larger
+```
+
+Then reload: `hyprctl reload`
 
 ### Auto-start Daemon
 

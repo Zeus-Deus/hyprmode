@@ -318,6 +318,8 @@ def apply_mirror(laptop: Optional[dict], external: dict) -> None:
 class HyprModeApp(App):
     """Hyprland display mode switcher TUI"""
     
+    TITLE = "HyprMode"
+    
     CSS = """
     Screen {
         align: center middle;
