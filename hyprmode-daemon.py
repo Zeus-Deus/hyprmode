@@ -10,6 +10,8 @@ import subprocess
 import time
 import sys
 import json
+import os
+import re
 
 
 def send_notification(message: str, urgent: bool = False) -> None:
@@ -83,7 +85,7 @@ def apply_laptop_only(laptop: dict, external: dict) -> None:
 
 
 def get_monitor_count() -> tuple:
-    """Get count of enabled monitors and laptop disabled state"""
+    """Get count of enabled monitors and check if laptop exists"""
     try:
         result = subprocess.run(
             ["hyprctl", "monitors", "-j"],
@@ -94,56 +96,89 @@ def get_monitor_count() -> tuple:
         )
         
         monitors = json.loads(result.stdout)
-        enabled_count = len([m for m in monitors if not m.get('disabled', False)])
+        monitor_count = len(monitors)
         
-        # Check if laptop (eDP/LVDS/DSI) is disabled
-        laptop_disabled = not any(
+        # Check if laptop monitor exists in the list
+        has_laptop = any(
             'eDP' in m['name'] or 'LVDS' in m['name'] or 'DSI' in m['name']
-            for m in monitors if not m.get('disabled', False)
+            for m in monitors
         )
         
-        return enabled_count, laptop_disabled
+        return monitor_count, has_laptop
     except Exception:
-        return 1, False  # Safe default
+        return 1, True  # Safe default
 
 
 def emergency_enable_laptop() -> None:
-    """Emergency: Re-enable laptop screen to prevent black screen"""
+    """Emergency: Re-enable laptop screen with correct settings"""
     try:
         send_notification("⚠️ External display lost - enabling laptop screen", urgent=True)
-        monitors = get_monitors()
-        if monitors['laptop']:
-            apply_laptop_only(monitors['laptop'], None)
-    except Exception:
-        # Last resort: just enable laptop with preferred settings
+        
+        # Read laptop settings from lid-switch.conf if it exists
+        laptop_settings = "preferred,auto,1.25"  # Safe default
+        
         try:
-            subprocess.run(
-                ["hyprctl", "keyword", "monitor", ",preferred,auto,1"],
-                timeout=5
-            )
+            lid_conf = os.path.expanduser("~/.config/hypr/lid-switch.conf")
+            if os.path.exists(lid_conf):
+                with open(lid_conf, 'r') as f:
+                    for line in f:
+                        # Find the "lid open" line with monitor settings
+                        if 'switch:off' in line and 'monitor' in line:
+                            # Extract settings from: monitor "eDP-2,1920x1200@165,auto,1.25"
+                            match = re.search(r'"([^"]+)"', line)
+                            if match:
+                                full_setting = match.group(1)
+                                # Extract just the settings part (after monitor name)
+                                if ',' in full_setting:
+                                    parts = full_setting.split(',', 1)
+                                    if len(parts) == 2:
+                                        laptop_settings = parts[1]  # Get "1920x1200@165,auto,1.25"
+                                        break
         except Exception:
-            pass
+            pass  # Use default if reading fails
+        
+        # Try common laptop monitor names with settings
+        laptop_names = ['eDP-1', 'eDP-2', 'LVDS-1', 'DSI-1']
+        
+        for name in laptop_names:
+            try:
+                subprocess.run(
+                    ["hyprctl", "keyword", "monitor", f"{name},{laptop_settings}"],
+                    timeout=2,
+                    check=False,
+                    capture_output=True
+                )
+            except Exception:
+                continue
+        
+        print("✓ Emergency recovery executed")
+        
+    except Exception as e:
+        print(f"✗ Emergency recovery failed: {e}")
 
 
 def monitor_hotplug() -> None:
     """Monitor for external display disconnect and provide emergency recovery"""
-    previous_count, previous_laptop_disabled = get_monitor_count()
+    previous_count, previous_has_laptop = get_monitor_count()
     
     print("hyprmode emergency recovery daemon started")
     print("Monitoring for external display disconnect...")
     
     while True:
         try:
-            current_count, current_laptop_disabled = get_monitor_count()
+            current_count, current_has_laptop = get_monitor_count()
             
-            # CRITICAL: External unplugged while laptop disabled = BLACK SCREEN!
-            if (previous_laptop_disabled and 
-                current_laptop_disabled and 
-                current_count == 0):
+            # CRITICAL: No monitors active = BLACK SCREEN!
+            # This happens when:
+            # 1. Laptop was disabled (External Only mode)
+            # 2. External monitor unplugged
+            # Result: 0 monitors in hyprctl list
+            if current_count == 0:
+                print("⚠️ EMERGENCY: No active monitors detected!")
                 emergency_enable_laptop()
             
             previous_count = current_count
-            previous_laptop_disabled = current_laptop_disabled
+            previous_has_laptop = current_has_laptop
             
             time.sleep(1)  # Check every second
             
