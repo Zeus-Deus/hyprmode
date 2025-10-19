@@ -96,12 +96,20 @@ def get_monitor_count() -> tuple:
         )
         
         monitors = json.loads(result.stdout)
-        monitor_count = len(monitors)
         
-        # Check if laptop monitor exists in the list
+        # Filter out disabled monitors - only count active/enabled ones
+        # Disabled monitors have disabled=true or have invalid dimensions
+        enabled_monitors = [
+            m for m in monitors
+            if not m.get('disabled', False) and m.get('width', 0) > 0 and m.get('height', 0) > 0
+        ]
+        
+        monitor_count = len(enabled_monitors)
+        
+        # Check if laptop monitor exists in the enabled list
         has_laptop = any(
             'eDP' in m['name'] or 'LVDS' in m['name'] or 'DSI' in m['name']
-            for m in monitors
+            for m in enabled_monitors
         )
         
         return monitor_count, has_laptop
