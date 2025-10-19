@@ -1,9 +1,0 @@
-# hyprmode - Event-driven lid switch detection
-# These bindings are called by Hyprland when lid events occur
-
-# When lid closes (switch on)
-bindl = , switch:on:Lid Switch, exec, /usr/local/bin/hyprmode-daemon --lid-closed
-
-# When lid opens (switch off)
-bindl = , switch:off:Lid Switch, exec, /usr/local/bin/hyprmode-daemon --lid-opened
-
