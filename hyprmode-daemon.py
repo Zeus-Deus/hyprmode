@@ -87,6 +87,8 @@ def apply_laptop_only(laptop: dict, external: dict) -> None:
 def get_monitor_count() -> tuple:
     """Get count of enabled monitors and check if laptop exists"""
     try:
+        print("DEBUG: get_monitor_count() called")
+        
         result = subprocess.run(
             ["hyprctl", "monitors", "-j"],
             capture_output=True,
@@ -96,12 +98,22 @@ def get_monitor_count() -> tuple:
         )
         
         monitors = json.loads(result.stdout)
+        print(f"DEBUG: Got {len(monitors)} monitors from hyprctl")
         
-        # Filter out disabled monitors - only count active/enabled ones
-        # Disabled monitors have disabled=true or have invalid dimensions
+        # Debug: Print monitor details to verify dpmsStatus field works
+        print("DEBUG: All monitors from hyprctl:")
+        for m in monitors:
+            print(f"  - {m.get('name')}: disabled={m.get('disabled')}, dpmsStatus={m.get('dpmsStatus')}, "
+                  f"activeWorkspace={m.get('activeWorkspace', {}).get('id', 'N/A')}, "
+                  f"dims={m.get('width')}x{m.get('height')}")
+        
+        # Filter to only count ACTUALLY RENDERING monitors
+        # The 'disabled' field is UNRELIABLE - use dpmsStatus instead
         enabled_monitors = [
             m for m in monitors
-            if not m.get('disabled', False) and m.get('width', 0) > 0 and m.get('height', 0) > 0
+            if m.get('dpmsStatus', False) == True  # Display is powered on
+            and m.get('width', 0) > 0 
+            and m.get('height', 0) > 0
         ]
         
         monitor_count = len(enabled_monitors)
@@ -113,8 +125,11 @@ def get_monitor_count() -> tuple:
         )
         
         return monitor_count, has_laptop
-    except Exception:
-        return 1, True  # Safe default
+    except Exception as e:
+        print(f"ERROR in get_monitor_count(): {e}")
+        import traceback
+        traceback.print_exc()
+        return 0, False  # Return 0 monitors to be safe (prevents masking issues)
 
 
 def emergency_enable_laptop() -> None:
@@ -165,8 +180,32 @@ def emergency_enable_laptop() -> None:
         print(f"✗ Emergency recovery failed: {e}")
 
 
+def wait_for_hyprland(max_wait: int = 30) -> bool:
+    """Wait for Hyprland to be ready"""
+    for i in range(max_wait):
+        try:
+            result = subprocess.run(
+                ['hyprctl', 'monitors', '-j'], 
+                capture_output=True,
+                check=True,
+                timeout=2
+            )
+            print("✓ Hyprland is ready")
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            if i == 0:
+                print("Waiting for Hyprland to start...")
+            time.sleep(1)
+    print("ERROR: Hyprland failed to start after 30 seconds")
+    return False
+
+
 def monitor_hotplug() -> None:
     """Monitor for external display disconnect and provide emergency recovery"""
+    # Wait for Hyprland to be ready before starting monitoring
+    if not wait_for_hyprland():
+        sys.exit(1)
+    
     previous_count, previous_has_laptop = get_monitor_count()
     
     print("hyprmode emergency recovery daemon started")
@@ -175,6 +214,7 @@ def monitor_hotplug() -> None:
     while True:
         try:
             current_count, current_has_laptop = get_monitor_count()
+            print(f"DEBUG: Detected {current_count} enabled monitors, has_laptop={current_has_laptop}")
             
             # CRITICAL: No monitors active = BLACK SCREEN!
             # This happens when:
