@@ -199,14 +199,6 @@ hyprctl keyword monitor "EXTERNAL,preferred,auto-right,1"
 hyprctl keyword monitor "EXTERNAL,WIDTHxHEIGHT@REFRESH,0x0,1,mirror,LAPTOP"
 ```
 
-### Lid State Detection
-
-Reads lid state from:
-- `/proc/acpi/button/lid/LID/state`
-- `/proc/acpi/button/lid/LID0/state` (fallback)
-
-Returns: `open`, `closed`, or `unknown` (for desktops)
-
 ## Troubleshooting
 
 ### "hyprctl not found"
@@ -249,7 +241,6 @@ hyprmode/
 ├── hyprmode-daemon.service  # Systemd service unit
 ├── install.sh               # Installation script (auto-detects monitors)
 ├── uninstall.sh             # Uninstallation script
-├── lid-switch.conf.template # Template for Hyprland lid bindings
 ├── README.md                # This file
 └── LICENSE                  # MIT License
 ```
