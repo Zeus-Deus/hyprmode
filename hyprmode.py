@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
+# this is to make sure default python runs instead of a conda env
+
 """
 hyprmode - Display Mode Switcher for Hyprland
 Phase 2: Interactive menu with display mode switching
