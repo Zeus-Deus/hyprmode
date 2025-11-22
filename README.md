@@ -432,25 +432,44 @@ journalctl --user -u hyprmode-daemon | grep "VERSION"
 
 #### For Omarchy Users (Recommended)
 
-Omarchy uses separate config files for better organization. Follow these steps:
+Omarchy splits Hyprland configs for clarity. Use the checklist below to drop HyprMode in without touching the Python code.
 
-**Step 1: Add the keybind**
+**Theming stays automatic**
 
-Edit `~/.config/hypr/bindings.conf`:
+- The HyprMode Python backend already auto-detects your current Omarchy theme and applies the matching palette.  
+- That detection works in both the Alacritty-based sessions (Omarchy < 3.2) and the Ghostty-based sessions (Omarchy ≥ 3.2).  
+- Switching terminals or keybinds never breaks coloring, so you do **not** need to modify any hyprmode source files for theming.
+
+**Step 1: Replace the HyprMode keybinding**
 
 ```bash
 nano ~/.config/hypr/bindings.conf
 ```
 
-Add this line (Omarchy uses `bindd` with descriptions):
+Keep Omarchy’s `$terminal = uwsm app -- $TERMINAL` declaration for every other application, but note that `$terminal` often strips or overrides the per-terminal class/app-id flags HyprMode needs. To guarantee floating behavior, hardcode the HyprMode binding to the exact terminal command (with the right flag) instead of relying on `$terminal`:
 
-```bash
+```
+# Recommended keybinding examples:
 bindd = SUPER, P, Display switcher, exec, alacritty --class hyprmode -e hyprmode
+bindd = SUPER, P, Display switcher, exec, ghostty --class=hyprmode -e hyprmode
+bindd = SUPER, P, Display switcher, exec, kitty --class hyprmode -e hyprmode
+bindd = SUPER, P, Display switcher, exec, foot --app-id=hyprmode hyprmode
 ```
 
-**Step 2: Create window rules**
+If you use another terminal, duplicate the pattern above and swap in its class/app-id flag (e.g., `--class`, `--class=`, or `--app-id`). The key requirement is that the launched window reports the literal identifier `hyprmode`.
 
-Create `~/.config/hypr/windows.conf`:
+**Note for Omarchy users**
+
+- Omarchy versions **before 3.2** default to **Alacritty**, so copy the Alacritty example binding as-is.  
+- Omarchy **3.2 and later** switch the default terminal to **Ghostty**, so use the Ghostty binding.  
+- Running a custom terminal (Kitty, Foot, etc.) is fine—just mirror its class/app-id flag in the hardcoded `bindd` command.
+
+**Why add the terminal flag?**  
+Hyprland treats HyprMode as “just another terminal” unless it sees the custom class/app-id. The `--class`/`--app-id` flag marks the window as `hyprmode`, which lets the floating/centering window rules catch it every time.
+
+**Step 2: Create or confirm the window rules**
+
+HyprMode relies on rules in `~/.config/hypr/windows.conf` to float, center, and size the UI. Make sure the file exists (create it if needed) and contains entries that target `class:(hyprmode)` or `app-id:(hyprmode)`:
 
 ```bash
 cat > ~/.config/hypr/windows.conf << 'EOF'
@@ -461,6 +480,8 @@ windowrulev2 = size 600 530, class:(hyprmode)
 windowrulev2 = opacity 0.95, class:(hyprmode)
 EOF
 ```
+
+If your terminal only exposes `app-id`, duplicate the lines and swap `class:` with `app-id:`. Afterwards, reload Hyprland with `hyprctl reload` so the new rules apply.
 
 **Step 3: Source the window rules**
 
@@ -483,7 +504,38 @@ Now press **Super+P** - hyprmode should appear as a centered floating window!
 
 **Why the special launch command?**
 
-TUI apps run inside terminals, so Hyprland can't distinguish them from regular terminal windows. The `alacritty --class hyprmode` command creates a terminal with a unique class that window rules can target.
+TUI apps run inside terminals, so Hyprland can't distinguish them from regular terminal windows. Using `$TERMINAL` plus the right per-terminal flag (`--class`, `--class=`, or `--app-id`) gives the window a unique identifier that the window rules can target while letting you switch between Alacritty, Ghostty, Kitty, Foot, etc. without rewriting your hotkeys.
+
+### Dynamic terminal helper for wrapper scripts
+
+Advanced users or packagers sometimes wrap `hyprmode` (for example, to inject additional logic before launching the TUI). Drop the helper below into your Python wrapper to auto-select the right flags based on the terminal executable name:
+
+```python
+def build_terminal_command():
+    import os
+
+    terminal = os.environ.get("TERMINAL", "alacritty").lower()
+    flags = {
+        "alacritty": "--class hyprmode -e",
+        "ghostty": "--class=hyprmode -e",
+        "kitty": "--class hyprmode -e",
+        "foot": "--app-id=hyprmode",
+    }
+    flag = flags.get(terminal, "-e")
+    return f"{terminal} {flag} hyprmode"
+```
+
+Example usage:
+
+```python
+import shlex
+import subprocess
+
+cmd = build_terminal_command()
+subprocess.Popen(shlex.split(cmd))
+```
+
+Point your Hyprland bind at the wrapper (or have the wrapper installed as `hyprmode-launcher`) to keep configs simple while still giving each terminal the correct `--class`/`--app-id` flag automatically.
 
 #### For Standard Hyprland Users
 
@@ -491,7 +543,8 @@ Add to your `~/.config/hypr/hyprland.conf`:
 
 ```conf
 # Display mode switcher (like Windows Super+P)
-bind = SUPER, P, exec, alacritty --class hyprmode -e hyprmode
+$terminal = $TERMINAL
+bind = SUPER, P, exec, $terminal -e hyprmode
 
 # Window rules for floating mode
 windowrulev2 = float, class:(hyprmode)

@@ -44,9 +44,16 @@ def load_omarchy_colors():
     if tomllib is None:
         return None
 
-    theme_file = Path.home() / ".config/omarchy/current/theme/alacritty.toml"
+    # Try Ghostty (Omarchy v3.2+) first, then fall back to Alacritty for older versions
+    ghostty_theme = Path.home() / ".config/omarchy/current/theme/ghostty"
+    alacritty_theme = Path.home() / ".config/omarchy/current/theme/alacritty.toml"
 
-    if not theme_file.exists():
+    theme_file = None
+    if ghostty_theme.exists():
+        theme_file = ghostty_theme
+    elif alacritty_theme.exists():
+        theme_file = alacritty_theme
+    else:
         return None
 
     try:
