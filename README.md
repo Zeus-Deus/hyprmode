@@ -55,7 +55,7 @@ echo 'bindd = SUPER SHIFT, P, Display switcher, exec, alacritty --class hyprmode
 **For Omarchy users (>= 3.2 with Ghostty):**
 
 ```bash
-echo 'bindd = SUPER SHIFT, P, Display switcher, exec, ghostty --class=hyprmode -e hyprmode' >> ~/.config/hypr/bindings.conf
+echo 'bindd = SUPER SHIFT, P, Display switcher, exec, ghostty --title=hyprmode -e hyprmode' >> ~/.config/hypr/bindings.conf
 ```
 
 **For standard Hyprland users (Kitty):**
@@ -70,16 +70,31 @@ echo 'bind = SUPER SHIFT, P, exec, kitty --class hyprmode -e hyprmode' >> ~/.con
 echo 'bind = SUPER SHIFT, P, exec, foot --app-id=hyprmode hyprmode' >> ~/.config/hypr/hyprland.conf
 ```
 
-> **Note:** The `--class` or `--app-id` flag is required so Hyprland can identify the HyprMode window and apply the floating/centering rules. Choose the command that matches your terminal.
+> **Note:** The `--class`, `--title`, or `--app-id` flag is required so Hyprland can identify the HyprMode window and apply the floating/centering rules. Choose the command that matches your terminal. Ghostty requires `--title` instead of `--class`.
 
 ### Step 3: Add Window Rules
 
-HyprMode needs to float and center on your screen. Add these rules:
+HyprMode needs to float and center on your screen. Choose the rules that match your terminal:
+
+**For Ghostty users:**
 
 ```bash
 cat >> ~/.config/hypr/windows.conf << 'EOF'
 
-# HyprMode - Float and center
+# HyprMode - Float and center (for Ghostty terminal)
+windowrulev2 = float, title:(hyprmode)
+windowrulev2 = center, title:(hyprmode)
+windowrulev2 = size 600 530, title:(hyprmode)
+windowrulev2 = opacity 0.95, title:(hyprmode)
+EOF
+```
+
+**For Alacritty/Kitty users:**
+
+```bash
+cat >> ~/.config/hypr/windows.conf << 'EOF'
+
+# HyprMode - Float and center (for Alacritty/Kitty)
 windowrulev2 = float, class:(hyprmode)
 windowrulev2 = center, class:(hyprmode)
 windowrulev2 = size 600 530, class:(hyprmode)
@@ -87,7 +102,20 @@ windowrulev2 = opacity 0.95, class:(hyprmode)
 EOF
 ```
 
-> **Note:** If your terminal uses `app-id` instead of `class` (like Foot), replace `class:(hyprmode)` with `app-id:(hyprmode)` in all four rules.
+**For Foot users:**
+
+```bash
+cat >> ~/.config/hypr/windows.conf << 'EOF'
+
+# HyprMode - Float and center (for Foot terminal)
+windowrulev2 = float, app-id:(hyprmode)
+windowrulev2 = center, app-id:(hyprmode)
+windowrulev2 = size 600 530, app-id:(hyprmode)
+windowrulev2 = opacity 0.95, app-id:(hyprmode)
+EOF
+```
+
+> **Note:** Ghostty uses `title:` matching, Alacritty/Kitty use `class:` matching, and Foot uses `app-id:` matching. Make sure to use the correct window rules for your terminal.
 
 **For Omarchy users only** - ensure `windows.conf` is sourced in your main config:
 
@@ -198,12 +226,23 @@ The default HyprMode window is 600x530 pixels. To change it:
 nano ~/.config/hypr/windows.conf  # or hyprland.conf
 ```
 
-Change the size line:
+Change the size line (use the matching type for your terminal):
 
 ```conf
+# For Alacritty/Kitty
 windowrulev2 = size 600 530, class:(hyprmode)  # Default
 windowrulev2 = size 550 400, class:(hyprmode)  # Smaller
 windowrulev2 = size 700 600, class:(hyprmode)  # Larger
+
+# For Ghostty
+windowrulev2 = size 600 530, title:(hyprmode)  # Default
+windowrulev2 = size 550 400, title:(hyprmode)  # Smaller
+windowrulev2 = size 700 600, title:(hyprmode)  # Larger
+
+# For Foot
+windowrulev2 = size 600 530, app-id:(hyprmode)  # Default
+windowrulev2 = size 550 400, app-id:(hyprmode)  # Smaller
+windowrulev2 = size 700 600, app-id:(hyprmode)  # Larger
 ```
 
 Then reload: `hyprctl reload`
@@ -212,16 +251,28 @@ Then reload: `hyprctl reload`
 
 Don't like **SUPER+SHIFT+P**? You can use any key combination. Just edit your binding:
 
-**Example with SUPER+P (no shift):**
+**Example with SUPER+P (no shift) - Alacritty:**
 
 ```conf
 bind = SUPER, P, exec, alacritty --class hyprmode -e hyprmode
 ```
 
-**Example with SUPER+D:**
+**Example with SUPER+P (no shift) - Ghostty:**
+
+```conf
+bind = SUPER, P, exec, ghostty --title=hyprmode -e hyprmode
+```
+
+**Example with SUPER+D - Alacritty:**
 
 ```conf
 bind = SUPER, D, exec, alacritty --class hyprmode -e hyprmode
+```
+
+**Example with SUPER+D - Ghostty:**
+
+```conf
+bind = SUPER, D, exec, ghostty --title=hyprmode -e hyprmode
 ```
 
 ### Automatic Lid Handling
@@ -251,7 +302,7 @@ def build_terminal_command():
     terminal = os.environ.get("TERMINAL", "alacritty").lower()
     flags = {
         "alacritty": "--class hyprmode -e",
-        "ghostty": "--class=hyprmode -e",
+        "ghostty": "--title=hyprmode -e",
         "kitty": "--class hyprmode -e",
         "foot": "--app-id=hyprmode",
     }
@@ -259,7 +310,7 @@ def build_terminal_command():
     return f"{terminal} {flag} hyprmode"
 ```
 
-This automatically selects the correct `--class` or `--app-id` flag based on your `$TERMINAL` environment variable.
+This automatically selects the correct `--class`, `--title`, or `--app-id` flag based on your `$TERMINAL` environment variable.
 
 ---
 
