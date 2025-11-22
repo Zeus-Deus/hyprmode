@@ -4,6 +4,7 @@
 """
 hyprmode - Display Mode Switcher for Hyprland
 Phase 2: Interactive menu with display mode switching
+VERSION: v0.1.0 (with Omarchy theme support)
 """
 
 import json
@@ -16,6 +17,63 @@ from textual.binding import Binding
 from textual.containers import Container
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
+from textual.theme import Theme
+
+# Theme loading support
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    try:
+        import tomli as tomllib  # Fallback for older Python
+    except ImportError:
+        tomllib = None
+
+
+def normalize_color_format(color):
+    """Convert 0xRRGGBB to #RRGGBB for CSS/Textual compatibility."""
+    if isinstance(color, str) and color.startswith('0x'):
+        return '#' + color[2:]
+    return color
+
+
+def load_omarchy_colors():
+    """
+    Load colors from Omarchy's active theme.
+    Returns dict with RGB color values, or None if not found.
+    """
+    if tomllib is None:
+        return None
+
+    theme_file = Path.home() / ".config/omarchy/current/theme/alacritty.toml"
+
+    if not theme_file.exists():
+        return None
+
+    try:
+        with open(theme_file, "rb") as f:
+            data = tomllib.load(f)
+
+        colors = data.get("colors", {})
+        normal = colors.get("normal", {})
+        bright = colors.get("bright", {})
+        primary = colors.get("primary", {})
+
+        return {
+            "accent": normalize_color_format(
+                normal.get("yellow") or bright.get("yellow") or "#EBCB8B"
+            ),
+            "primary": normalize_color_format(
+                normal.get("cyan") or bright.get("cyan") or "#88C0D0"
+            ),
+            "foreground": normalize_color_format(
+                primary.get("foreground") or "#D8DEE9"
+            ),
+            "background": normalize_color_format(
+                primary.get("background") or "#2E3440"
+            ),
+        }
+    except Exception:
+        return None
 
 
 def get_monitors() -> dict:
@@ -368,6 +426,28 @@ class HyprModeApp(App):
     
     def __init__(self):
         super().__init__()
+        
+        # Load Omarchy theme if available
+        omarchy_colors = load_omarchy_colors()
+        
+        if omarchy_colors:
+            self.register_theme(
+                Theme(
+                    name="omarchy-auto",
+                    primary=omarchy_colors["primary"],
+                    secondary=omarchy_colors["accent"],
+                    accent=omarchy_colors["accent"],
+                    foreground=omarchy_colors["foreground"],
+                    background=omarchy_colors["background"],
+                    surface=omarchy_colors["background"],
+                    panel=omarchy_colors["background"],
+                    dark=True,
+                )
+            )
+            self.theme = "omarchy-auto"
+        else:
+            self.theme = "textual-dark"
+        
         try:
             self.monitors = get_monitors()
             self.lid_state = get_lid_state()

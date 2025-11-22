@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# VERSION: 2025-10-19-PRODUCTION-v1
+# VERSION: 2025-11-21-v0.1.0
 """
 hyprmode-daemon - Emergency laptop screen recovery
 

@@ -85,12 +85,28 @@ sudo chmod +x /usr/local/bin/hyprmode-daemon
 
 ### Dependencies
 
-```bash
-# Arch Linux
-sudo pacman -S python-textual
+#### Arch Linux
 
-# Other distros
+```bash
+sudo pacman -S python-textual
+```
+
+Optional: Omarchy theme support (Python < 3.11 only). Python 3.11+ has built-in `tomllib`, but older versions require `tomli`:
+
+```bash
+sudo pacman -S python-tomli  # or: pip install tomli
+```
+
+#### Other distros
+
+```bash
 pip install textual
+```
+
+Optional for other distros (Python < 3.11):
+
+```bash
+pip install tomli  # Only needed for Python < 3.11
 ```
 
 ## Usage
@@ -609,15 +625,6 @@ Contributions welcome! Please:
 3. Make your changes
 4. Submit a pull request
 
-## Roadmap
-
-- [x] Phase 1: Monitor detection + basic TUI
-- [x] Phase 2: Interactive menu + display switching
-- [x] Phase 3: Automatic lid-close handling
-- [ ] Phase 4: Multi-monitor support (3+ displays)
-- [ ] Phase 5: Custom mode profiles
-- [ ] Phase 6: GUI configuration tool
-
 ## License
 
 MIT License - see LICENSE file for details
@@ -631,6 +638,6 @@ MIT License - see LICENSE file for details
 ## Links
 
 - **Repository**: https://github.com/Zeus-Deus/hyprmode
-- **Issues**: https://github.com/Zeus-Deus/hyprmode/issuesus
+- **Issues**: https://github.com/Zeus-Deus/hyprmode/issues
 - **Hyprland**: https://hyprland.org/
 - **Textual**: https://textual.textualize.io/
