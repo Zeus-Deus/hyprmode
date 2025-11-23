@@ -65,26 +65,32 @@ if ! pgrep -x Hyprland > /dev/null; then
     echo "⚠ Hyprland is not running - skipping lid detection"
     echo "  Run installer again after starting Hyprland to enable lid handling"
 else
-    # Detect laptop monitor (eDP, LVDS, DSI variants)
-    LAPTOP_MONITOR=$(hyprctl monitors all -j 2>/dev/null | grep -oP '"name":"[^"]*(?:eDP|LVDS|DSI)[^"]*"' | head -1 | cut -d'"' -f4)
+    # Use Python to detect laptop monitor and get specs in one shot
+    MONITOR_DATA=$(hyprctl monitors all -j 2>/dev/null | python3 -c "
+import sys, json
+try:
+    monitors = json.load(sys.stdin)
+    # Find first monitor with eDP, LVDS, or DSI in name
+    laptop = next((m for m in monitors if any(x in m['name'].upper() for x in ['EDP', 'LVDS', 'DSI'])), None)
+    if laptop:
+        print(f\"{laptop['name']}\")
+        print(f\"{laptop['width']}x{laptop['height']}@{int(laptop['refreshRate'])},auto,{laptop['scale']}\")
+    else:
+        print('NOTFOUND')
+except:
+    print('ERROR')
+" 2>/dev/null)
 
-    if [ -z "$LAPTOP_MONITOR" ]; then
+    # Parse the output
+    LAPTOP_MONITOR=$(echo "$MONITOR_DATA" | head -1)
+    MONITOR_SPEC=$(echo "$MONITOR_DATA" | tail -1)
+
+    if [ "$LAPTOP_MONITOR" = "NOTFOUND" ] || [ "$LAPTOP_MONITOR" = "ERROR" ] || [ -z "$LAPTOP_MONITOR" ]; then
         echo "⚠ No laptop monitor detected (desktop system?)"
         echo "  Skipping lid-switch configuration"
     else
         echo "✓ Detected laptop monitor: $LAPTOP_MONITOR"
-
-        # Get monitor specs (width, height, refresh, scale)
-        MONITOR_SPEC=$(hyprctl monitors all -j 2>/dev/null | \
-            python3 -c "import sys, json; data=json.load(sys.stdin); matches=[x for x in data if x['name']=='$LAPTOP_MONITOR']; print(f\"{matches[0]['width']}x{matches[0]['height']}@{int(matches[0]['refreshRate'])},auto,{matches[0]['scale']}\") if matches else None" 2>/dev/null)
-
-        if [ -z "$MONITOR_SPEC" ]; then
-            echo "⚠ Could not detect monitor specifications"
-            MONITOR_SPEC="preferred,auto,1"
-            echo "  Using fallback: $MONITOR_SPEC"
-        else
-            echo "✓ Detected specs: $MONITOR_SPEC"
-        fi
+        echo "✓ Detected specs: $MONITOR_SPEC"
 
         # Create Hyprland config directory if needed
         mkdir -p ~/.config/hypr/
