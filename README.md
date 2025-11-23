@@ -22,6 +22,23 @@ Get HyprMode running in 5 minutes. Follow these steps in order:
 yay -S hyprmode
 ```
 
+##### Note: If you see an outdated version
+
+AUR helpers like `yay` cache package builds locally. If a new version was just released and you see an old version:
+
+**Clear cache and reinstall:**
+
+```bash
+yay -Sc
+yay -S hyprmode
+```
+
+**Or force rebuild:**
+
+```bash
+yay -S hyprmode --rebuild --cleanafter
+```
+
 #### Option B: Manual Installation
 
 ```bash
