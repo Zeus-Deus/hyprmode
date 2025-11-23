@@ -3,13 +3,38 @@ export PYTHONDONTWRITEBYTECODE=1
 export PYTHONUNBUFFERED=1
 
 # Delete any cached bytecode
-find /usr/local/bin -name "*.pyc" -delete 2>/dev/null
+find /usr/bin /usr/local/bin -maxdepth 1 -name "hyprmode-daemon*.pyc" -delete 2>/dev/null
 find ~/.cache -name "*hyprmode*.pyc" -delete 2>/dev/null
 
 # Force Python to execute the file directly (not import it)
-exec /usr/bin/python3 -B -u -c "
+exec /usr/bin/python3 -B -u - <<'PYCODE'
+import os
 import sys
+
 sys.dont_write_bytecode = True
-with open('/usr/local/bin/hyprmode-daemon', 'r') as f:
-    exec(f.read())
-"
+
+daemon_paths = [
+    "/usr/bin/hyprmode-daemon",
+    "/usr/local/bin/hyprmode-daemon",
+]
+
+code = None
+source_path = None
+
+for candidate in daemon_paths:
+    try:
+        with open(candidate, "r", encoding="utf-8") as daemon_file:
+            code = daemon_file.read()
+            source_path = candidate
+            break
+    except FileNotFoundError:
+        continue
+
+if code is None:
+    sys.stderr.write(
+        "hyprmode-daemon-wrapper: hyprmode-daemon not found in /usr/bin or /usr/local/bin\n"
+    )
+    sys.exit(1)
+
+exec(compile(code, source_path, "exec"))
+PYCODE

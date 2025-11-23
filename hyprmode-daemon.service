@@ -4,7 +4,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/bash -c 'find /usr/local/bin -name "*.pyc" -delete 2>/dev/null; find ${HOME}/.cache -name "*.pyc" -delete 2>/dev/null || true'
+ExecStartPre=/bin/bash -c 'find /usr/bin /usr/local/bin -maxdepth 1 -name "hyprmode-daemon*.pyc" -delete 2>/dev/null; find "${HOME}/.cache" -name "*hyprmode*.pyc" -delete 2>/dev/null || true'
 ExecStart=/usr/bin/hyprmode-daemon-wrapper
 Restart=on-failure
 RestartSec=5
