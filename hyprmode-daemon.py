@@ -201,12 +201,27 @@ def monitor_hotplug() -> None:
     
     previous_count, previous_has_laptop = get_monitor_count()
     
+    # Debounce and cooldown state
+    zero_monitor_count = 0
+    debounce_threshold = 3  # Require 3 consecutive 0-monitor readings
+    cooldown_seconds = 10
+    last_recovery_time = 0.0
+    cooldown_until = 0.0
+    in_cooldown = False
+    
     print("hyprmode emergency recovery daemon started")
     print("Monitoring for external display disconnect...")
     
     while True:
         print("HEARTBEAT")
         try:
+            now = time.time()
+            
+            # Automatically clear cooldown when period expires
+            if in_cooldown and now >= cooldown_until:
+                in_cooldown = False
+                print("Cooldown period ended; recovery re-enabled")
+            
             current_count, current_has_laptop = get_monitor_count()
             print(f"Detected: {current_count} monitors, has_laptop={current_has_laptop}")
             print(f"Previous: {previous_count} monitors, previous_has_laptop={previous_has_laptop}")
@@ -217,8 +232,24 @@ def monitor_hotplug() -> None:
             # 2. External monitor unplugged
             # Result: 0 monitors in hyprctl list
             if current_count == 0:
-                print("⚠️ EMERGENCY: No active monitors detected!")
-                emergency_enable_laptop()
+                zero_monitor_count += 1
+                print(f"0 monitors detected ({zero_monitor_count} consecutive)")
+                
+                if zero_monitor_count >= debounce_threshold:
+                    if in_cooldown:
+                        print("[DEBUG] In cooldown period, skipping recovery")
+                    else:
+                        print("⚠️ EMERGENCY: No active monitors detected!")
+                        emergency_enable_laptop()
+                        last_recovery_time = now
+                        cooldown_until = now + cooldown_seconds
+                        in_cooldown = True
+                        readable_until = time.strftime("%H:%M:%S", time.localtime(cooldown_until))
+                        print(f"Cooldown active until {readable_until}")
+            else:
+                if zero_monitor_count > 0:
+                    print("Monitors restored, resetting zero-monitor counter")
+                zero_monitor_count = 0
             
             previous_count = current_count
             previous_has_laptop = current_has_laptop
