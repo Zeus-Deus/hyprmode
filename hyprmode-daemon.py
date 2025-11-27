@@ -97,18 +97,18 @@ def get_monitor_count() -> tuple:
         )
         
         monitors = json.loads(result.stdout)
-        
-        # Filter to only count ACTUALLY RENDERING monitors
-        # The 'disabled' field is UNRELIABLE - use dpmsStatus instead
+
+        # Count monitors that are configured (non-zero resolution) and not explicitly disabled.
+        # DPMS only represents power state, so we ignore it to keep sleeping panels in the tally.
         enabled_monitors = [
             m for m in monitors
-            if m.get('dpmsStatus', False) == True  # Display is powered on
-            and m.get('width', 0) > 0 
+            if m.get('width', 0) > 0
             and m.get('height', 0) > 0
+            and m.get('disabled', False) is not True
         ]
-        
+
         monitor_count = len(enabled_monitors)
-        
+
         # Check if laptop monitor exists in the enabled list
         has_laptop = any(
             'eDP' in m['name'] or 'LVDS' in m['name'] or 'DSI' in m['name']
