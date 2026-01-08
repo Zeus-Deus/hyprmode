@@ -99,10 +99,7 @@ HyprMode needs to float and center on your screen. Choose the rules that match y
 cat >> ~/.config/hypr/windows.conf << 'EOF'
 
 # HyprMode - Float and center (for Ghostty terminal)
-windowrulev2 = float, title:(hyprmode)
-windowrulev2 = center, title:(hyprmode)
-windowrulev2 = size 600 530, title:(hyprmode)
-windowrulev2 = opacity 0.95, title:(hyprmode)
+windowrule = float on, center on, size 600 530, opacity 0.95, match:title ^(hyprmode)$
 EOF
 ```
 
@@ -112,10 +109,7 @@ EOF
 cat >> ~/.config/hypr/windows.conf << 'EOF'
 
 # HyprMode - Float and center (for Alacritty/Kitty)
-windowrulev2 = float, class:(hyprmode)
-windowrulev2 = center, class:(hyprmode)
-windowrulev2 = size 600 530, class:(hyprmode)
-windowrulev2 = opacity 0.95, class:(hyprmode)
+windowrule = float on, center on, size 600 530, opacity 0.95, match:class ^(hyprmode)$
 EOF
 ```
 
@@ -125,10 +119,7 @@ EOF
 cat >> ~/.config/hypr/windows.conf << 'EOF'
 
 # HyprMode - Float and center (for Foot terminal)
-windowrulev2 = float, app-id:(hyprmode)
-windowrulev2 = center, app-id:(hyprmode)
-windowrulev2 = size 600 530, app-id:(hyprmode)
-windowrulev2 = opacity 0.95, app-id:(hyprmode)
+windowrule = float on, center on, size 600 530, opacity 0.95, match:class ^(hyprmode)$
 EOF
 ```
 
@@ -208,6 +199,7 @@ hyprmode
 ```
 
 **Navigation:**
+
 - `j` / `Down` - Move down
 - `k` / `Up` - Move up
 - `Enter` - Apply selected mode
@@ -247,19 +239,20 @@ Change the size line (use the matching type for your terminal):
 
 ```conf
 # For Alacritty/Kitty
-windowrulev2 = size 600 530, class:(hyprmode)  # Default
-windowrulev2 = size 550 400, class:(hyprmode)  # Smaller
-windowrulev2 = size 700 600, class:(hyprmode)  # Larger
+# HyprMode - Float and center
+windowrule = size 600 530, match:class ^(hyprmode)$  # Default
+windowrule = size 550 400, match:class ^(hyprmode)$  # Smaller
+windowrule = size 700 600, match:class ^(hyprmode)$  # Larger
 
 # For Ghostty
-windowrulev2 = size 600 530, title:(hyprmode)  # Default
-windowrulev2 = size 550 400, title:(hyprmode)  # Smaller
-windowrulev2 = size 700 600, title:(hyprmode)  # Larger
+windowrule = size 600 530, match:title ^(hyprmode)$  # Default
+windowrule = size 550 400, match:title ^(hyprmode)$  # Smaller
+windowrule = size 700 600, match:title ^(hyprmode)$  # Larger
 
 # For Foot
-windowrulev2 = size 600 530, app-id:(hyprmode)  # Default
-windowrulev2 = size 550 400, app-id:(hyprmode)  # Smaller
-windowrulev2 = size 700 600, app-id:(hyprmode)  # Larger
+windowrule = size 600 530, match:class ^(hyprmode)$  # Default
+windowrule = size 550 400, match:class ^(hyprmode)$  # Smaller
+windowrule = size 700 600, match:class ^(hyprmode)$  # Larger
 ```
 
 Then reload: `hyprctl reload`
@@ -445,6 +438,7 @@ systemctl --user restart hyprmode-daemon
 ```
 
 3. Test emergency recovery:
+
    - Plug in external monitor
    - Run `hyprmode` and switch to "External Only"
    - Unplug HDMI cable
@@ -540,21 +534,25 @@ hyprctl keyword monitor "EXTERNAL,WIDTHxHEIGHT@REFRESH,0x0,1,mirror,LAPTOP"
 ### Daemon Technical Details
 
 **Monitor Detection Method:**
+
 - Uses `hyprctl monitors -j` with `dpmsStatus` field
 - Checks if display is actually powered on (`dpmsStatus == True`)
 - More reliable than the `disabled` field
 
 **Startup Behavior:**
+
 - Waits up to 30 seconds for Hyprland to be ready
 - Auto-retries via systemd if first attempt fails
 - Typical success on 2nd attempt (6 seconds after boot)
 
 **Performance:**
+
 - Polls every 1 second (negligible CPU usage)
 - Memory footprint: ~6-7MB
 - Response time: < 1 second for emergency recovery
 
 **Safety Features:**
+
 - Python bytecode caching bypass (prevents stale code)
 - Version tracking (verify correct code is running)
 - Comprehensive error logging
