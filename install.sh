@@ -38,6 +38,17 @@ else
     exit 1
 fi
 
+# Refresh any legacy copies in /usr/bin so stale code can't shadow this install
+for pair in "hyprmode:hyprmode.py" "hyprmode-daemon:hyprmode-daemon.py" "hyprmode-daemon-wrapper:hyprmode-daemon-wrapper"; do
+    dest="/usr/bin/${pair%%:*}"
+    src="${pair#*:}"
+    if [ -f "$dest" ]; then
+        sudo cp "$src" "$dest"
+        sudo chmod +x "$dest"
+        echo "✓ Refreshed legacy copy: $dest"
+    fi
+done
+
 # Create systemd user directory if it doesn't exist
 mkdir -p ~/.config/systemd/user/
 
@@ -60,51 +71,72 @@ systemctl --user restart hyprmode-daemon
 echo ""
 echo "Detecting laptop monitor for lid handling..."
 
+# Omarchy ships its own lid handling (external-guarded, reload-based).
+# A second set of lid bindings would conflict with it (both fire on lid
+# events), so defer to Omarchy entirely when it is installed.
+if [ -d "$HOME/.local/share/omarchy" ]; then
+    echo "✓ Omarchy detected - deferring lid handling to Omarchy"
+    LID_CONF="$HOME/.config/hypr/lid-switch.conf"
+    if [ -f "$LID_CONF" ] && grep -q "switch:" "$LID_CONF"; then
+        # Neutralize a lid config left behind by an older hyprmode install.
+        # The file is kept (comments only) so an existing
+        # "source = ~/.config/hypr/lid-switch.conf" line stays valid.
+        cat > "$LID_CONF" << 'EOF'
+# hyprmode - lid handling disabled on this machine
+#
+# Omarchy was detected (~/.local/share/omarchy). Omarchy ships its own
+# external-guarded, reload-based lid handling, and a second set of lid
+# bindings would conflict with it (both fire on lid events).
+#
+# This file is intentionally empty so an existing
+# "source = ~/.config/hypr/lid-switch.conf" line in hyprland.conf
+# stays valid.
+EOF
+        echo "✓ Neutralized old lid-switch.conf (Omarchy owns lid events now)"
+        echo "  Run 'hyprctl reload' to apply"
+    fi
 # Check if Hyprland is running
-if ! pgrep -x Hyprland > /dev/null; then
+elif ! pgrep -x Hyprland > /dev/null; then
     echo "⚠ Hyprland is not running - skipping lid detection"
     echo "  Run installer again after starting Hyprland to enable lid handling"
 else
-    # Use Python to detect laptop monitor and get specs in one shot
-    MONITOR_DATA=$(hyprctl monitors all -j 2>/dev/null | python3 -c "
+    # Use Python to detect the laptop monitor name
+    LAPTOP_MONITOR=$(hyprctl monitors all -j 2>/dev/null | python3 -c "
 import sys, json
 try:
     monitors = json.load(sys.stdin)
     # Find first monitor with eDP, LVDS, or DSI in name
     laptop = next((m for m in monitors if any(x in m['name'].upper() for x in ['EDP', 'LVDS', 'DSI'])), None)
-    if laptop:
-        print(f\"{laptop['name']}\")
-        print(f\"{laptop['width']}x{laptop['height']}@{int(laptop['refreshRate'])},auto,{laptop['scale']}\")
-    else:
-        print('NOTFOUND')
+    print(laptop['name'] if laptop else 'NOTFOUND')
 except:
     print('ERROR')
 " 2>/dev/null)
-
-    # Parse the output
-    LAPTOP_MONITOR=$(echo "$MONITOR_DATA" | head -1)
-    MONITOR_SPEC=$(echo "$MONITOR_DATA" | tail -1)
 
     if [ "$LAPTOP_MONITOR" = "NOTFOUND" ] || [ "$LAPTOP_MONITOR" = "ERROR" ] || [ -z "$LAPTOP_MONITOR" ]; then
         echo "⚠ No laptop monitor detected (desktop system?)"
         echo "  Skipping lid-switch configuration"
     else
         echo "✓ Detected laptop monitor: $LAPTOP_MONITOR"
-        echo "✓ Detected specs: $MONITOR_SPEC"
 
         # Create Hyprland config directory if needed
         mkdir -p ~/.config/hypr/
 
         # Create lid-switch.conf
+        # - Lid close only disables the panel if an external monitor is
+        #   actually connected (never drop to 0 displays).
+        # - Lid open restores via "hyprctl reload": "keyword monitor" is a
+        #   no-op on a disabled connector, a config reload re-lights it.
         cat > ~/.config/hypr/lid-switch.conf << EOF
 # hyprmode - Automatic lid switch detection
 # Generated for laptop monitor: $LAPTOP_MONITOR
 
-# When lid closes - disable laptop display
-bindl = , switch:on:Lid Switch, exec, hyprctl keyword monitor "$LAPTOP_MONITOR,disable"
+# When lid closes - disable laptop display, but ONLY if an external
+# monitor is actually connected (otherwise you'd have 0 displays)
+bindl = , switch:on:Lid Switch, exec, sh -c 'for s in /sys/class/drm/card*-*/status; do case "\$s" in *eDP*|*LVDS*|*DSI*) continue;; esac; [ "\$(cat "\$s")" = connected ] && exec hyprctl keyword monitor "$LAPTOP_MONITOR,disable"; done'
 
-# When lid opens - restore laptop display with detected settings
-bindl = , switch:off:Lid Switch, exec, hyprctl keyword monitor "$LAPTOP_MONITOR,$MONITOR_SPEC"
+# When lid opens - restore laptop display via config reload
+# (NOTE: "hyprctl keyword monitor" cannot re-enable a disabled connector)
+bindl = , switch:off:Lid Switch, exec, hyprctl reload
 EOF
 
         echo "✓ Created ~/.config/hypr/lid-switch.conf"

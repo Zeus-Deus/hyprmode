@@ -4,7 +4,7 @@
 """
 hyprmode - Display Mode Switcher for Hyprland
 Phase 2: Interactive menu with display mode switching
-VERSION: v0.1.0 (with Omarchy theme support)
+VERSION: v0.2.0 (reload-based display recovery, Omarchy theme support)
 """
 
 import json
@@ -216,8 +216,25 @@ def clear_mirror_state(laptop: Optional[dict], external: Optional[dict]) -> dict
         # Small delay for state to settle
         import time
         time.sleep(0.3)
-        
+
+        # Clear Omarchy's internal-display disable toggle if present.
+        # Otherwise the reload below re-applies "monitor=<name>,disable"
+        # and the laptop panel stays off ("keyword monitor" cannot
+        # re-enable a disabled connector afterwards).
+        omarchy_toggle = (
+            Path.home()
+            / ".local/state/omarchy/toggles/hypr/internal-monitor-disable.conf"
+        )
+        try:
+            omarchy_toggle.unlink()
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+
         # CRITICAL: Reload Hyprland config to restore native monitor settings
+        # (a config reload is the only reliable way to re-light a disabled
+        # connector - "hyprctl keyword monitor" no-ops on disabled outputs)
         subprocess.run(
             ["hyprctl", "reload"],
             timeout=5,
@@ -527,7 +544,7 @@ class HyprModeApp(App):
         try:
             if mode == "laptop":
                 if not laptop:
-                    send_notification("Laptop display not detected. Try: hyprctl keyword monitor 'eDP-2,preferred,auto,1'", urgent=True)
+                    send_notification("Laptop display not detected. Try: hyprctl reload", urgent=True)
                     return
                 apply_laptop_only(laptop, external)
                 self.exit()
@@ -539,7 +556,7 @@ class HyprModeApp(App):
                 self.exit()
             elif mode == "extend":
                 if not laptop:
-                    send_notification("Laptop display not detected. Try: hyprctl keyword monitor 'eDP-2,preferred,auto,1'", urgent=True)
+                    send_notification("Laptop display not detected. Try: hyprctl reload", urgent=True)
                     return
                 if not external:
                     send_notification("No external monitor detected", urgent=True)
@@ -548,7 +565,7 @@ class HyprModeApp(App):
                 self.exit()
             elif mode == "mirror":
                 if not laptop:
-                    send_notification("Laptop display not detected. Try: hyprctl keyword monitor 'eDP-2,preferred,auto,1'", urgent=True)
+                    send_notification("Laptop display not detected. Try: hyprctl reload", urgent=True)
                     return
                 if not external:
                     send_notification("No external monitor detected", urgent=True)

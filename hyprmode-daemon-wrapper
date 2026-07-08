@@ -13,9 +13,11 @@ import sys
 
 sys.dont_write_bytecode = True
 
+# Prefer /usr/local/bin (where install.sh deploys) so a stale copy in
+# /usr/bin can never shadow a fresh install.
 daemon_paths = [
-    "/usr/bin/hyprmode-daemon",
     "/usr/local/bin/hyprmode-daemon",
+    "/usr/bin/hyprmode-daemon",
 ]
 
 code = None

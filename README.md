@@ -181,8 +181,8 @@ HyprMode gives you four display modes, just like Windows Super+P:
 ### Why You Need This
 
 - **Fast switching** - Change display modes in under a second
-- **Emergency recovery** - Daemon automatically restores your laptop screen if all monitors disconnect
-- **Lid-aware** - Automatically handles laptop lid open/close events
+- **Emergency recovery** - Daemon automatically restores your laptop screen if all monitors disconnect (via `hyprctl reload` - the only reliable way to re-light a disabled connector)
+- **Lid-aware** - Automatically handles laptop lid open/close events (defers to Omarchy's own lid handling when Omarchy is installed)
 - **Beautiful TUI** - Clean interface with vim keybindings
 - **Theme support** - Auto-detects Omarchy themes
 
@@ -287,17 +287,22 @@ bind = SUPER, D, exec, ghostty --title=hyprmode -e hyprmode
 
 ### Automatic Lid Handling
 
-The installer auto-detects your laptop monitor and creates `~/.config/hypr/lid-switch.conf` with lid event bindings:
+**On Omarchy:** the installer detects Omarchy (`~/.local/share/omarchy`) and skips lid configuration entirely - Omarchy ships its own external-guarded, reload-based lid handling, and a second set of lid bindings would conflict with it (both fire on lid events, which can race and black-screen the laptop). If an older hyprmode install left a `lid-switch.conf` behind, the installer neutralizes it.
+
+**On other Hyprland setups:** the installer auto-detects your laptop monitor and creates `~/.config/hypr/lid-switch.conf` with lid event bindings:
 
 ```conf
-# When lid closes - disable laptop display
-bindl = , switch:on:Lid Switch, exec, hyprctl keyword monitor "eDP-2,disable"
+# When lid closes - disable laptop display, but ONLY if an external
+# monitor is actually connected (otherwise you'd have 0 displays)
+bindl = , switch:on:Lid Switch, exec, sh -c 'for s in /sys/class/drm/card*-*/status; do case "$s" in *eDP*|*LVDS*|*DSI*) continue;; esac; [ "$(cat "$s")" = connected ] && exec hyprctl keyword monitor "eDP-2,disable"; done'
 
-# When lid opens - restore laptop display
-bindl = , switch:off:Lid Switch, exec, hyprctl keyword monitor "eDP-2,1920x1200@165,auto,1.25"
+# When lid opens - restore laptop display via config reload
+bindl = , switch:off:Lid Switch, exec, hyprctl reload
 ```
 
-This uses Hyprland's native `bindl` (bind lid switch) feature for instant, zero-CPU-overhead detection. The installer automatically detects your laptop monitor name (eDP-1, eDP-2, etc.) and resolution.
+This uses Hyprland's native `bindl` (bind lid switch) feature for instant, zero-CPU-overhead detection. The installer automatically detects your laptop monitor name (eDP-1, eDP-2, etc.).
+
+Restore on lid-open uses `hyprctl reload` because `hyprctl keyword monitor <name>,<settings>` is a **no-op on a connector that is currently disabled** - Hyprland will not re-modeset a disabled output that way. A config reload re-reads the monitor configuration and re-lights it.
 
 After installation, reload Hyprland: `hyprctl reload`
 
@@ -454,7 +459,7 @@ Expected output:
 
 ```
 ⚠️ EMERGENCY: No active monitors detected!
-✓ Emergency recovery executed
+✓ Emergency recovery executed (hyprctl reload)
 ```
 
 ### Laptop screen still shows artifacts in "External Only" mode
@@ -520,7 +525,10 @@ HyprMode uses these `hyprctl` commands internally:
 # Disable monitor
 hyprctl keyword monitor "MONITOR_NAME,disable"
 
-# Enable with auto-detection
+# Re-enable a disabled monitor (the ONLY reliable way - see note below)
+hyprctl reload
+
+# Configure an already-active monitor
 hyprctl keyword monitor "MONITOR_NAME,preferred,auto,1"
 
 # Extend mode
@@ -530,6 +538,8 @@ hyprctl keyword monitor "EXTERNAL,preferred,auto-right,1"
 # Mirror mode
 hyprctl keyword monitor "EXTERNAL,WIDTHxHEIGHT@REFRESH,0x0,1,mirror,LAPTOP"
 ```
+
+**Important:** `hyprctl keyword monitor "NAME,<settings>"` only works on monitors that are already active. On a **disabled** connector it silently no-ops (returns "ok" but nothing happens) - Hyprland won't re-modeset a disabled output that way. That's why every recovery path in HyprMode (mode switching, lid open, emergency daemon) goes through `hyprctl reload` first.
 
 ### Daemon Technical Details
 

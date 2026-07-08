@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-# VERSION: 2025-11-21-v0.1.0
+# VERSION: 2026-07-08-v0.2.0
 """
 hyprmode-daemon - Emergency laptop screen recovery
 
 Monitors for external display disconnect and re-enables laptop screen
 if user would otherwise be stuck with a black screen.
+
+Recovery uses `hyprctl reload`: `hyprctl keyword monitor <name>,<settings>`
+does NOT re-enable a connector that is currently disabled (Hyprland won't
+re-modeset a disabled output that way), but a config reload re-lights it.
 """
 
 import subprocess
@@ -12,7 +16,6 @@ import time
 import sys
 import json
 import os
-import re
 
 
 def send_notification(message: str, urgent: bool = False) -> None:
@@ -25,64 +28,6 @@ def send_notification(message: str, urgent: bool = False) -> None:
         )
     except Exception:
         pass  # Notifications are optional
-
-
-def get_monitors() -> dict:
-    """Get connected monitors from hyprctl"""
-    try:
-        result = subprocess.run(
-            ["hyprctl", "monitors", "-j"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5
-        )
-        
-        monitors_data = json.loads(result.stdout)
-        
-        laptop = None
-        external = None
-        
-        for monitor in monitors_data:
-            name = monitor['name']
-            if 'eDP' in name or 'LVDS' in name or 'DSI' in name:
-                laptop = monitor
-            else:
-                external = monitor
-        
-        return {'laptop': laptop, 'external': external}
-    except Exception:
-        return {'laptop': None, 'external': None}
-
-
-def apply_laptop_only(laptop: dict, external: dict) -> None:
-    """Enable laptop display only"""
-    if not laptop:
-        return
-    
-    try:
-        laptop_name = laptop['name']
-        width = laptop['width']
-        height = laptop['height']
-        refresh = laptop.get('refreshRate', 60)
-        scale = laptop.get('scale', 1.0)
-        
-        # Enable laptop with its settings
-        subprocess.run(
-            ["hyprctl", "keyword", "monitor", 
-             f"{laptop_name},{width}x{height}@{int(refresh)},auto,{scale}"],
-            timeout=5,
-            check=True
-        )
-        
-        # Disable external if present
-        if external:
-            subprocess.run(
-                ["hyprctl", "keyword", "monitor", f"{external['name']},disable"],
-                timeout=5
-            )
-    except Exception:
-        pass
 
 
 def get_monitor_count() -> tuple:
@@ -124,49 +69,39 @@ def get_monitor_count() -> tuple:
 
 
 def emergency_enable_laptop() -> None:
-    """Emergency: Re-enable laptop screen with correct settings"""
+    """Emergency: Re-enable displays via `hyprctl reload`.
+
+    `hyprctl keyword monitor <name>,<settings>` is a no-op on a connector
+    that is currently disabled - it cannot bring a display back. A config
+    reload re-reads the monitor configuration and re-lights disabled
+    connectors, so it is the only reliable recovery path.
+    """
     try:
-        send_notification("⚠️ External display lost - enabling laptop screen", urgent=True)
-        
-        # Read laptop settings from lid-switch.conf if it exists
-        laptop_settings = "preferred,auto,1.25"  # Safe default
-        
+        send_notification("⚠️ No active displays - restoring via config reload", urgent=True)
+
+        # Clear Omarchy's internal-display disable toggle if present,
+        # otherwise the reload would re-apply "monitor=<name>,disable"
+        # and the panel would stay dark.
+        omarchy_toggle = os.path.expanduser(
+            "~/.local/state/omarchy/toggles/hypr/internal-monitor-disable.conf"
+        )
         try:
-            lid_conf = os.path.expanduser("~/.config/hypr/lid-switch.conf")
-            if os.path.exists(lid_conf):
-                with open(lid_conf, 'r') as f:
-                    for line in f:
-                        # Find the "lid open" line with monitor settings
-                        if 'switch:off' in line and 'monitor' in line:
-                            # Extract settings from: monitor "eDP-2,1920x1200@165,auto,1.25"
-                            match = re.search(r'"([^"]+)"', line)
-                            if match:
-                                full_setting = match.group(1)
-                                # Extract just the settings part (after monitor name)
-                                if ',' in full_setting:
-                                    parts = full_setting.split(',', 1)
-                                    if len(parts) == 2:
-                                        laptop_settings = parts[1]  # Get "1920x1200@165,auto,1.25"
-                                        break
-        except Exception:
-            pass  # Use default if reading fails
-        
-        # Try common laptop monitor names with settings
-        laptop_names = ['eDP-1', 'eDP-2', 'LVDS-1', 'DSI-1']
-        
-        for name in laptop_names:
-            try:
-                subprocess.run(
-                    ["hyprctl", "keyword", "monitor", f"{name},{laptop_settings}"],
-                    timeout=2,
-                    check=False,
-                    capture_output=True
-                )
-            except Exception:
-                continue
-        
-        print("✓ Emergency recovery executed")
-        
+            os.remove(omarchy_toggle)
+            print("Cleared Omarchy internal-monitor-disable toggle")
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"Could not clear Omarchy toggle: {e}")
+
+        subprocess.run(
+            ["hyprctl", "reload"],
+            timeout=5,
+            check=False,
+            capture_output=True
+        )
+
+        print("✓ Emergency recovery executed (hyprctl reload)")
+
     except Exception as e:
         print(f"✗ Emergency recovery failed: {e}")
 
@@ -197,7 +132,7 @@ def monitor_hotplug() -> None:
     if not wait_for_hyprland():
         sys.exit(1)
     
-    print("HyprMode Daemon VERSION: 2025-10-19-PRODUCTION-v1")
+    print("HyprMode Daemon VERSION: 2026-07-08-v0.2.0")
     
     previous_count, previous_has_laptop = get_monitor_count()
     
